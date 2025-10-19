@@ -117,19 +117,49 @@ def transaction_aim_for_churn_0(df,churn_value = 0):
     plt.show()
 
 
-def harcama_tenure_oranı(df):
+def tenure_in_data(df):
+    """
+    her biir customer için veri setindeki tarih aralığının ay bazında gösterir yani datadaki tenure sayısını
+    column name = active_tenure
+    """
     df_copy = df.copy()
+    diff = df_copy.groupby("cust_id")["date"].agg(["max","min"]) #lambda ile tek saturda yapmak yerine daha hızlı çözüm
+    diff["active_tenure"] = ((diff["max"] - diff["min"]).dt.days / 30).round().astype(int)
+    diff = diff.reset_index()
+    diff = diff.drop(columns=["max","min"])
+
+    return diff
+
+
+def harcama_tenure_oranı(df):
+    """
+    customerlerin günlük ortalama değerleri
+    """
+
+    df_copy = df.copy()
+    active_tenure=tenure_in_data(df_copy)
+    df_copy = df_copy.merge(active_tenure, how='left', on='cust_id')
+
     sum_val = df_copy.groupby("cust_id").agg({
         "mobile_eft_all_amt" : "sum",
         "cc_transaction_all_amt" : "sum",
         "mobile_eft_all_cnt" : "sum",
         "cc_transaction_all_cnt" : "sum",
-        "tenure" : "min"
+        "tenure" : "min",
+        "active_tenure" : "min"
     })
+
+
 
     cols = ["mobile_eft_all_amt","cc_transaction_all_amt","mobile_eft_all_cnt","cc_transaction_all_cnt"]
     for col in cols:
-        sum_val[f"{col}_tenure_ratio"] = sum_val[col]/sum_val["tenure"]
+        sum_val[f"{col}_tenure_ratio"] = sum_val[col]/sum_val["active_tenure"] #aktif olduğu süre bazında
+
+    sum_val = sum_val.drop(columns=["mobile_eft_all_amt","cc_transaction_all_amt","mobile_eft_all_cnt","cc_transaction_all_cnt"])
+
+    print(sum_val)
+
+
 
     """
     #rationun churn üzerindeki etkisine bakmak için
@@ -179,8 +209,6 @@ def harcama_tenure_oranı(df):
     plt.tight_layout()
     plt.show()
     """
-
-    print(sum_val)
 
 
 def calculate_slope(series):
@@ -351,7 +379,7 @@ harcama_tenure_oranı(df_merge_test)
 #3-6-12 aylık numeric verilerin değerleri
 monthly_numerical_analysis(df_merge_train,3)
 monthly_numerical_analysis(df_merge_train,6)
-monthly_numerical_analysis(df_merge_train,12)
+monthly_numerical_analysis(df_merge_train,100)
 
 consecutive_zero_transection_count(df_merge_train)
 
