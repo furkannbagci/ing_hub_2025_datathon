@@ -62,7 +62,7 @@ def numerical_col_churn_analysis(df , max_unique = 20):
     for col in num_cols:
         num_unique = df[col].nunique()
         if num_unique > max_unique:
-            new_col = df.groupby(pd.cut(df[col],bins=21))["churn"].mean()
+            new_col = df.groupby(pd.cut(df[col],bins=60))["churn"].mean()
             new_col.plot(kind='bar')
             plt.title(f"churn - {col}")
         else:
@@ -70,6 +70,137 @@ def numerical_col_churn_analysis(df , max_unique = 20):
             plt_cols.plot(kind='bar')
             plt.title(f"churn - {col}")
         plt.show()
+
+def transaction_aim_for_churn_0(df,churn_value = 0):
+    df_copy = df.copy()
+    #churn değeri 0 olanlar için yıl bazlı harcama tablosu
+    df_copy = df_copy[df_copy["churn"] == churn_value]
+
+    plt.figure(figsize=(20, 15))
+    # ay bazlı işlem ortalamaları
+    monthly_agg = df_copy.groupby(pd.Grouper(key='date', freq='ME')).agg({
+        'mobile_eft_all_cnt': 'mean',
+        'mobile_eft_all_amt': 'mean',
+        'cc_transaction_all_amt': 'mean',
+        'cc_transaction_all_cnt': 'mean',
+        'active_product_category_nbr': 'mean'
+    }).reset_index()
+
+    plt.title(f"Transaction Aim for Churn {churn_value}")
+
+    plt.subplot(3, 2, 1)
+    plt.plot(monthly_agg['date'], monthly_agg['mobile_eft_all_cnt'], marker='o')
+    plt.title('Average Mobile EFT Count Over Time')
+    plt.xticks(rotation=45)
+
+    plt.subplot(3, 2, 2)
+    plt.plot(monthly_agg['date'], monthly_agg['mobile_eft_all_amt'], marker='o', color='orange')
+    plt.title('Average Mobile EFT Amount Over Time')
+    plt.xticks(rotation=45)
+
+    plt.subplot(3, 2, 3)
+    plt.plot(monthly_agg['date'], monthly_agg['cc_transaction_all_amt'], marker='o', color='green')
+    plt.title('Average Credit Card Transaction Amount Over Time')
+    plt.xticks(rotation=45)
+
+    plt.subplot(3, 2, 4)
+    plt.plot(monthly_agg['date'], monthly_agg['cc_transaction_all_cnt'], marker='o', color='red')
+    plt.title('Average Credit Card Transaction Count Over Time')
+    plt.xticks(rotation=45)
+
+    plt.subplot(3, 2, 5)
+    plt.plot(monthly_agg['date'], monthly_agg['active_product_category_nbr'], marker='o', color='purple')
+    plt.title('Average Active Product Categories Over Time')
+    plt.xticks(rotation=45)
+
+    plt.tight_layout()
+    plt.show()
+
+
+def harcama_tenure_oranı(df):
+    df_copy = df.copy()
+    sum_val = df_copy.groupby("cust_id").agg({
+        "mobile_eft_all_amt" : "sum",
+        "cc_transaction_all_amt" : "sum",
+        "mobile_eft_all_cnt" : "sum",
+        "cc_transaction_all_cnt" : "sum",
+        "tenure" : "min"
+    })
+
+    cols = ["mobile_eft_all_amt","cc_transaction_all_amt","mobile_eft_all_cnt","cc_transaction_all_cnt"]
+    for col in cols:
+        sum_val[f"{col}_tenure_ratio"] = sum_val[col]/sum_val["tenure"]
+
+    """
+    #rationun churn üzerindeki etkisine bakmak için
+    
+    sum_val["eft_ratio_bin"] = pd.qcut(sum_val["mobile_eft_all_amt_tenure_ratio"], 30, duplicates='drop')
+    sum_val["cc_ratio_bin"] = pd.qcut(sum_val["cc_transaction_all_amt_tenure_ratio"], 30, duplicates='drop')
+    sum_val["mobile_cnt"] = pd.qcut(sum_val["mobile_eft_all_cnt_tenure_ratio"], 30, duplicates='drop')
+    sum_val["cc_cnt"] = pd.qcut(sum_val["cc_transaction_all_cnt_tenure_ratio"], 30, duplicates='drop')
+    
+    
+    
+    # Her oran aralığına göre ortalama churn oranını hesapla
+    eft_churn = sum_val.groupby("eft_ratio_bin")["churn"].mean()
+    cc_churn = sum_val.groupby("cc_ratio_bin")["churn"].mean()
+    mobile_cnt = sum_val.groupby(["mobile_cnt"])["churn"].mean()
+    cc_tr_cnt = sum_val.groupby(["cc_cnt"])["churn"].mean()
+
+    plt.figure(figsize=(12, 5))
+
+    plt.subplot(2, 2, 1)
+    eft_churn.plot(kind="bar", rot=45)
+    plt.title("Mobile EFT / Tenure Oranı'na Göre Ortalama Churn")
+    plt.ylabel("Ortalama Churn Oranı")
+    plt.xlabel("Mobile EFT / Tenure Oranı Aralığı")
+
+    plt.subplot(2, 2, 2)
+    cc_churn.plot(kind="bar", rot=45)
+    plt.title("Kredi Kartı / Tenure Oranı'na Göre Ortalama Churn")
+    plt.ylabel("Ortalama Churn Oranı")
+    plt.xlabel("CC / Tenure Oranı Aralığı")
+    
+    plt.tight_layout()
+    plt.show()
+
+    plt.subplot(2, 2, 3)
+    mobile_cnt.plot(kind="bar", rot=45)
+    plt.title("mobile count / Tenure Oranı'na Göre Ortalama Churn")
+    plt.ylabel("Ortalama Churn Oranı")
+    plt.xlabel("mobile_count / Tenure Oranı Aralığı")
+
+    plt.subplot(2, 2, 4)
+    cc_tr_cnt.plot(kind="bar", rot=45)
+    plt.title("cc count / Tenure Oranı'na Göre Ortalama Churn")
+    plt.ylabel("Ortalama Churn Oranı")
+    plt.xlabel("CC / Tenure Oranı Aralığı")
+
+    plt.tight_layout()
+    plt.show()
+    """
+
+    print(sum_val)
+
+
+def calculate_slope(series):
+    """
+    lineer regrasyon eğimini hesaplama
+    harcama tutarlarının zaman aralığında lineer olarak eğilimin hesaplamak için
+    """
+
+    if len(series) < 2:  # eğer 2'den az veri varsa hesaplama olamaz
+        return 0
+
+    # y=harcama x=zaman
+    y = series.values
+    x = np.arange(len(series))
+
+    # 1.dereceden polinom
+    # sonuç [slope,intercept]
+    slope = np.polyfit(x, y, 1)[0]
+    return slope
+
 
 
 def monthly_numerical_analysis(df, month=3):
@@ -94,14 +225,32 @@ def monthly_numerical_analysis(df, month=3):
     cc_transaction_zeros_count = final_month_data.groupby(["cust_id","ref_date"])["cc_transaction_all_cnt"].agg(lambda x: (x==0).sum())
     cc_transaction_zeros_count = cc_transaction_zeros_count.reset_index(name='cc_transaction_zeros_count')
 
-    agg_features = final_month_data.groupby(["cust_id","ref_date"]).agg({**{col:["mean","std","max","min","last"] for col in num_col}, #değerlere yapılacak işlemler
+    #lineer eğilim hesaplama kısmı
+    slope_mobile = final_month_data.groupby("cust_id")["mobile_eft_all_amt"].apply(calculate_slope)
+    slope_cc_transaction = final_month_data.groupby("cust_id")["cc_transaction_all_amt"].apply(calculate_slope)
+    #veri eksikliği sonucu nan olabilecek değerlerin yerini 0 ile doldurma
+    slope_mobile.fillna(0, inplace=True)
+    slope_cc_transaction.fillna(0, inplace=True)
+    #yeniden isimlendirme
+    new_name = "trend_mobile"
+    slope_mobile.name = new_name
+    new_name = "trend_cc_transaction"
+    slope_cc_transaction.name = new_name
+
+
+    agg_features = final_month_data.groupby(["cust_id","ref_date"]).agg({**{col:["mean","std","max","min","last","sum"] for col in num_col}, #değerlere yapılacak işlemler
                                                                     "date":["count"]})#aktif ay sayısı
 
     agg_features.columns = ["_".join(col).strip() for col in agg_features.columns.values]
     agg_features.reset_index(inplace=True)
 
+    #0 işlem sayılarını merge
     agg_features = agg_features.merge(mobile_eft_zeros_count, on=["cust_id","ref_date"])
     agg_features = agg_features.merge(cc_transaction_zeros_count, on=["cust_id","ref_date"])
+
+    #lineer eğilim merge
+    agg_features = agg_features.merge(slope_mobile, on=["cust_id"])
+    agg_features = agg_features.merge(slope_cc_transaction, on=["cust_id"])
 
     #std nan olan değerleri 0 ile doldurulması (sadece 1 işlem yapılmış)
     std_cols = [col for col in agg_features.columns if 'std' in col]
@@ -114,9 +263,11 @@ def monthly_numerical_analysis(df, month=3):
     print(f"\n null count \n{agg_features.isnull().sum()}")
     print(f"\n unique count \n {agg_features.nunique()}")
 
-#REF_DATE İTİBARAEN CONSECUTİVE BİR ŞEKİLDE 0 OLAN TARİH SAYISININ TOPLAMI FONKSİYONU EKLE
 
 def consecutive_zero_transection_count(df):
+    """
+    consecutive şekilde ref_Daet tarihinden geriye dönük olarak kaç ay işlem yapılmadığını döndürür
+    """
     df_copy = df.copy()
     #verileri id asc ref_Date desc olacak şekilde sıraladık
     df_copy = df_copy.sort_values(["cust_id","date"],ascending=[True,False])
@@ -142,6 +293,8 @@ def consecutive_zero_transection_count(df):
 
     print(consecutive_counts)
     #print(df_copy.head(20))
+
+
 
 
 #****************************************************************************************
@@ -184,47 +337,13 @@ df_onizleme(df_merge_test)
 
 #kategorik ve numeric değerlerin churn dağılımı
 categorical_col_churn_analysis(df_merge_train)
-numerical_col_churn_analysis(df_merge_train)
+numerical_col_churn_analysis(df_merge_train) #tenure değerini son 50-60 verisi churn değeri yüksek
 
+transaction_aim_for_churn_0(df_merge_train,0)
+transaction_aim_for_churn_0(df_merge_train,1)
 
-plt.figure(figsize=(20, 15))
-# ay bazlı işlem ortalamaları
-monthly_agg = df_customer_history.groupby(pd.Grouper(key='date', freq='M')).agg({
-    'mobile_eft_all_cnt': 'mean',
-    'mobile_eft_all_amt': 'mean',
-    'cc_transaction_all_amt': 'mean',
-    'cc_transaction_all_cnt': 'mean',
-    'active_product_category_nbr': 'mean'
-}).reset_index()
-
-plt.subplot(3, 2, 1)
-plt.plot(monthly_agg['date'], monthly_agg['mobile_eft_all_cnt'], marker='o')
-plt.title('Average Mobile EFT Count Over Time')
-plt.xticks(rotation=45)
-
-plt.subplot(3, 2, 2)
-plt.plot(monthly_agg['date'], monthly_agg['mobile_eft_all_amt'], marker='o', color='orange')
-plt.title('Average Mobile EFT Amount Over Time')
-plt.xticks(rotation=45)
-
-plt.subplot(3, 2, 3)
-plt.plot(monthly_agg['date'], monthly_agg['cc_transaction_all_amt'], marker='o', color='green')
-plt.title('Average Credit Card Transaction Amount Over Time')
-plt.xticks(rotation=45)
-
-plt.subplot(3, 2, 4)
-plt.plot(monthly_agg['date'], monthly_agg['cc_transaction_all_cnt'], marker='o', color='red')
-plt.title('Average Credit Card Transaction Count Over Time')
-plt.xticks(rotation=45)
-
-plt.subplot(3, 2, 5)
-plt.plot(monthly_agg['date'], monthly_agg['active_product_category_nbr'], marker='o', color='purple')
-plt.title('Average Active Product Categories Over Time')
-plt.xticks(rotation=45)
-
-plt.tight_layout()
-plt.show()
-
+harcama_tenure_oranı(df_merge_train)
+harcama_tenure_oranı(df_merge_test)
 
 #****************************************************************************************
 #FETAURE ENGİNEERİNG
